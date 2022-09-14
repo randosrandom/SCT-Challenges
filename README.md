@@ -13,14 +13,14 @@ The dataset comprises a single bipolar trace (first row), the time discretizatio
 
 This process can be modeled using the monodomain model coupled with a system of ODE given by the Rogers-McCulloch model.
 An implementation of a numerical discretization of the model is provided in the file `TF2D.py`.
-The numerical simulation comprises two sinus activation followed by an extra-stimulus which triggers a sustained re-entrant circuits. All the physical coefficients of the model are well defined, outside of $`\nu_2`$, that can vary between $`0.0116`$ and $`0.0124`$.
+The numerical simulation comprises two sinus activation followed by an extra-stimulus which triggers a sustained re-entrant circuits. All the physical coefficients of the model are well defined, outside of `$\nu_2$`, that can vary between `$0.0116$` and `$0.0124$`.
 
 As solver parameters, it is recommended to use the following configurations:
- - $N = 128$, $`M = 64`$,  $`\Delta t=0.01`$
- - $`N = 256`$, $`M = 128`$,  $`\Delta t=0.005`$
+ - $N = 128$, $M = 64$,  $\Delta t=0.01$
+ - $N = 256$, $M = 128$,  $\Delta t=0.005$
 
 For the mathematical formulation, three different time windows can be considered:
- - measurement windows $`(0,450)\ ms`$ used by the device for selecting the impulse characteristics;
- - ATP windows $`(450,525)\ ms`$ where the impulse (maximum duration $`10\ ms`$) is delivered;
- - tracking window $`(600,800)\ ms`$ to verify the effectiveness of the strategy.
+ - measurement windows `$(0,450)\ ms$` used by the device for selecting the impulse characteristics;
+ - ATP windows `$(450,525)\ ms$` where the impulse (maximum duration `$10\ ms$`) is delivered;
+ - tracking window `$(600,800)\ ms$` to verify the effectiveness of the strategy.
 
