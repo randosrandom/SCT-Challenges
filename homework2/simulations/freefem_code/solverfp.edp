@@ -1,0 +1,500 @@
+// 1. geometry
+load "gmsh"
+load "iovtk"
+
+//mesh Th = gmshload("../our_scripts/geometries/new_meshes/cactus.msh");
+//mesh Th = gmshload("../our_scripts/geometries/new_meshes/cw.msh");
+//mesh Th = gmshload("../our_scripts/geometries/new_meshes/windsock.msh");
+mesh Th = gmshload("../our_scripts/geometries/new_meshes/cauli.msh");
+plot(Th);
+
+// 2. finite element spaces
+fespace Vh(Th, [P2, P2, P1]);
+fespace Xh(Th, P0);
+
+real Re = 2300;
+
+Vh [ux0h, uy0h, p0h],
+   [uxh, uyh, ph],
+   [vxh, vyh, qh],
+   [incrx, incry, incrp];
+Xh deltaK, uK;
+
+// 3. variational forms
+macro Grad(f) [dx(f), dy(f)] //
+macro Grad2(fx,fy) [dx(fx), dy(fx), dx(fy), dy(fy)] //
+macro Div(fx,fy) (dx(fx) + dy(fy)) //
+macro UGrad(bx,by, f) [bx,by]' * Grad(f) //
+macro UGrad2(bx,by, fx,fy) [UGrad(bx,by,fx), UGrad(bx,by,fy)] //
+macro Lapl(f) (dxx(f) + dyy(f)) //
+macro Lapl2(fx,fy) [Lapl(fx), Lapl(fy)] //
+
+problem fixedpoint([uxh, uyh, ph], [vxh, vyh, qh]) =
+    int2d(Th)(UGrad2(ux0h, uy0h, uxh, uyh)' * [vxh, vyh]
+              + 0.5 * Div(ux0h, uy0h) * [uxh,uyh]' * [vxh, vyh]
+              + (Grad2(uxh, uyh)' * Grad2(vxh, vyh)) / Re
+              - ph * Div(vxh, vyh)
+              + Div(uxh, uyh) * qh
+              + deltaK * (-Lapl(uxh) / Re + UGrad(ux0h, uy0h, uxh) + Div(ux0h, uy0h) * uxh / 2 + dx(ph)) *
+                         (UGrad(ux0h, uy0h, vxh) + Div(ux0h, uy0h) * vxh / 2 + dx(qh))
+              + deltaK * (-Lapl(uyh) / Re + UGrad(ux0h, uy0h, uyh) + Div(ux0h, uy0h) * uyh / 2 + dy(ph)) *
+                         (UGrad(ux0h, uy0h, vyh) + Div(ux0h, uy0h) * vyh / 2 + dy(qh))
+              + deltaK * Div(uxh, uyh) * Div(vxh, vyh))
+    + on(2, uxh=0.0, uyh=-0.4)
+    + on(1, uxh=0.0, uyh=0.0)
+	+ on(2, ph=0);
+
+/*varf residual([ux,uy,p],[vx,vy,q]) =
+    int2d(Th)(UGrad2(uxh, uyh, uxh, uyh)' * [vx, vy]
+              + 0.5 * Div(uxh, uyh) * [uxh,uyh]' * [vx, vy]
+              + (Grad2(uxh, uyh)' * Grad2(vx, vy)) / Re
+              - ph * Div(vx, vy)
+              + Div(uxh, uyh) * q
+              + deltaK * (-Lapl(uxh) / Re + UGrad(uxh, uyh, uxh) + Div(uxh, uyh) * uxh / 2 + dx(ph)) *
+                         (UGrad(uxh, uyh, vx) + Div(uxh, uyh) * vx / 2 + dx(q))
+              + deltaK * (-Lapl(uyh) / Re + UGrad(uxh, uyh, uyh) + Div(uxh, uyh) * uyh / 2 + dy(ph)) *
+                         (UGrad(uxh, uyh, vy) + Div(uxh, uyh) * vy / 2 + dy(q))
+              + deltaK * Div(uxh, uyh) * Div(vx, vy))
+    + on(2, ux=0, uy=-0.4)
+    + on(1, ux=0, uy=0);*/
+
+func int step() {
+    // input: [ux0h, uy0h, p0h] -> old solution
+    // output: [uxh, uyh, ph] -> new solution
+    uK = sqrt(ux0h^2 + uy0h^2);    // interpolation P* -> P0
+    deltaK = 0.25 * hTriangle / (1.e-15 + uK) *
+              min(1.0, hTriangle * uK * Re);
+    fixedpoint;
+	int[int] Order = [1];
+	string DataName = "u";
+	savevtk("cauli_trans_u.vtu", Th, uK, deltaK, dataname=DataName, order=Order);	
+    return 0;
+}
+
+real[int] res(Vh.ndof);
+
+/*func real error() {
+    // input: [ux0h, uy0h, p0h] -> old solution
+    // input: [uxh, uyh, ph] -> new solution
+    res = residual(0, Vh);
+    return sqrt(res' * res);
+}*/
+
+func real error() {
+    // input: [ux0h, uy0h, p0h] -> old solution
+    // input: [uxh, uyh, ph] -> new solution
+
+    //real pmean = int2d(Th)(ph);
+    //[uxh, uyh, ph] = [uxh, uyh, ph] - [0, 0, pmean];
+    //real p0mean = int2d(Th)(p0h);
+
+    incrx[] = uxh[];
+    incrx[] -= ux0h[];
+
+    real erru = int2d(Th)(dx(incrx)^2 + dy(incrx)^2 +
+                          dx(incry)^2 + dy(incry)^2 +
+                          incrx^2 + incry^2);
+    //real errp = int2d(Th)((incrp)^2);
+    real normu = int2d(Th)(dx(ux0h)^2 + dy(ux0h)^2 +
+                           dx(uy0h)^2 + dy(uy0h)^2 +
+                           ux0h^2 + uy0h^2);
+    //real normp = int2d(Th)((p0h-p0mean)^2);
+
+    return sqrt(erru / normu); // + sqrt(errp / normp);
+}
+
+// 4. nonlinear solver
+int nbiter = 15;
+real eps = 1.e-6;
+
+[ux0h, uy0h, p0h] = [0.0, 0.0, 0.0];
+fixedpoint;
+[ux0h, uy0h, p0h] = [uxh, uyh, ph];
+
+int iter = 0;
+for (iter = 0; iter < nbiter; ++iter) {
+    int errc = step();
+    if (errc != 0) {
+        cout << "ERROR: iteration " << iter << " failed!" << endl;
+        break;
+    }
+    if (error() < eps)
+        break;
+    [ux0h, uy0h, p0h] = [uxh, uyh, ph];
+}
+
+
+
+cout << "# iter: " << iter << endl;
+
+// 8. solution
+plot(ph, nbiso=100, fill=1, wait=1, value=true, cmm="Pressure");
+plot(uxh, nbiso=100, fill=1, wait=1, value=true, cmm="Velocity X");
+plot(uyh, nbiso=100, fill=1, wait=1, value=true, cmm="Velocity Y");
+plot([ux0h, uy0h], fill=1, wait=1, value=true, cmm="Velocity", ps="Ciao.png");
+
+cout << "Mean velocity: " << int2d(Th)(sqrt((uxh^2 + uyh^2)))/int2d(Th)(1) << endl;
+// cactus: 0.0548828
+// chicken wing: 0.030714
+// windsock: 0.027833
+// cauliflower: 0.0284562
+
+cout << "Vorticity: " << int2d(Th)(dx(uyh) - dy(uxh))/int2d(Th)(1) << endl;
+// cactus: 0.303279
+// chicken wing: 0.172463
+// windsock: 0.227074
+// cauliflower: 0.380919
+
+/* cout << "Max velocity:" << uxh[].max << endl;
+// cactus: 0.191176
+// chicken wing: 0.182473
+// windsock: 0.153145
+// cauliflower: 0.193596 */
+
+real tolerance = 1e-3;
+int count = 0;
+real sum = 0;
+for(int i=0; i<Vh.ndof; i++){
+	if(sqrt(uxh[][i]^2 + uyh[][i]^2) > tolerance){
+		count++;
+		sum += sqrt(uxh[][i]^2 + uyh[][i]^2);
+	}
+}
+
+cout << "Number of small velocities(<1e-3): " << Vh.ndof - count << endl;
+// cactus: 10200		%: 21.8635
+// chicken wing: 27654	%: 33.9696
+// windsock: 22706		%: 36.5547
+// cauliflower: 13257	%: 35.6553
+real Nsmall =Vh.ndof -  count;
+real Nhigh = count;
+real tot = Nsmall + Nhigh;
+real I = Nsmall/tot * 100;
+
+
+cout << "Number of high velocities(>1e-3): " << count << endl;
+// cactus: 36453
+// chicken wing: 53754
+// windsock: 39409
+// cauliflower: 23924
+
+cout << "Mean high velocities: " << sum/count << endl;
+// cactus: 0.0545745
+// chicken wing: 0.0372268
+// windsock: 0.035746
+// cauliflower: 0.0347271
+
+cout << "Area: " << int2d(Th)(1) << endl;
+
+cout << "I: " << I << endl;
+// 1)
+// ----------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------
+// FAIR COMPARISON (SAME maximum-x):
+
+//Area coeff = Area of this mesh/Max of area between meshes
+// WINDSOCK
+/*
+Area: 1.31989
+Area coeff = 0,8093
+Mean velocity: 0.0231116
+Vorticity: 0.300651
+Number of small velocities(<1e-3): 4469
+Number of high velocities(>1e-3): 6207
+Mean high velocities: 0.0296915
+=> I(v) = 41.86%
+I_norm = 33.877298
+*/
+
+// CW
+/*
+Area: 1.63097
+Area coeff: 1
+Mean velocity: 0.0262477
+Vorticity: 0.241482
+Number of small velocities(<1e-3): 4791
+Number of high velocities(>1e-3): 7914
+Mean high velocities: 0.0327554
+=> I(v) = 37.70 %
+
+If Shape was transfomed: 
+rotation: trns.rotation_transform(temp, np.pi/12, "cw", 1.1, True) (down_part)
+compression: 
+	bounds = [1,1.7]
+    scale = 0.95
+    df_cw_subsample = pd.DataFrame(trns.y_transform(temp, scale, bounds, True))
+
+Mean velocity: 0.0259456
+Vorticity: 0.254139
+Number of small velocities(<1e-3): 4631
+Number of high velocities(>1e-3): 7708
+Mean high velocities: 0.0322106
+Area: 1.54973
+=> I(v) =  37.53%
+*/
+
+// CACTUS
+/*
+Area: 1.25164
+Area coeff: 0,7674
+Mean velocity: 0.033607
+Vorticity: 0.313227
+Number of small velocities(<1e-3): 3505
+Number of high velocities(>1e-3): 6713
+Mean high velocities: 0.0369786
+=> I(v) = 34.30
+I_norm = 26.32182
+*/
+
+//CAULI
+/*
+Area: 1.26074
+Area coeff: 0,7730
+Mean velocity: 0.0217861
+Vorticity: 0.312317
+Number of small velocities(<1e-3): 4954
+Number of high velocities(>1e-3): 5548
+Mean high velocities: 0.0306648
+I(v) = 47.17%
+I_norm = 36.46241%
+*/
+//-----------------------------------------------------------------------------------
+//-----------------------------------------------------------------------------------
+
+// 2)
+//----------------------------------------------------------------------------------
+//----------------------------------------------------------------------------------
+// Only area comparison (original meshes)
+
+//WINDSOCK
+/*
+Mean velocity: 0.0237908
+Vorticity: 0.225882
+Number of small velocities(<1e-3): 5661
+Number of high velocities(>1e-3): 7801
+Mean high velocities: 0.0320957
+Area: 1.74756
+I = 
+*/
+
+//CW
+/*
+Mean velocity: 0.0192699
+Vorticity: 0.171149
+Number of small velocities(<1e-3): 7431
+Number of high velocities(>1e-3): 9763
+Mean high velocities: 0.0280713
+Area: 2.30121
+*/
+
+//CACTUS
+/*
+Mean velocity: 0.0331954
+Vorticity: 0.300378
+Number of small velocities(<1e-3): 3644
+Number of high velocities(>1e-3): 6914
+Mean high velocities: 0.0367943
+Area: 1.30518
+*/
+
+//CAULI
+/*
+Mean velocity: 0.0256439
+Vorticity: 0.37792
+Number of small velocities(<1e-3): 3850
+Number of high velocities(>1e-3): 5165
+Mean high velocities: 0.0325663
+Area: 1.04189
+*/
+//------------------------------------------------------------------------------------
+//------------------------------------------------------------------------------------
+
+// 3)
+//-------------------------------------------------------------------------------------
+//-------------------------------------------------------------------------------------
+// FAIR COMPARISON (Similar Area, different maximum-x)
+
+// WINDSOCK
+/*
+Mean velocity: 0.0231116
+Vorticity: 0.300651
+Number of small velocities(<1e-3): 4469
+Number of high velocities(>1e-3): 6207
+Mean high velocities: 0.0296915
+Area: 1.31989
+=> I(v) = 41.86%
+*/
+
+// CW
+/*
+Mean velocity: 0.029803
+Vorticity: 0.295129
+Number of small velocities(<1e-3): 3949
+Number of high velocities(>1e-3): 6997
+Mean high velocities: 0.0348832
+Area: 1.33449
+=> I(v) = 36.07%
+*/
+
+// CACTUS
+/*
+Mean velocity: 0.0325265
+Vorticity: 0.296741
+Number of small velocities(<1e-3): 3780
+Number of high velocities(>1e-3): 7055
+Mean high velocities: 0.0365448
+Area: 1.32117
+=> I(v) = 34.88%
+*/
+
+// CAULI
+/*
+Mean velocity: 0.020488
+Vorticity: 0.297445
+Number of small velocities(<1e-3): 5319
+Number of high velocities(>1e-3): 5514
+Mean high velocities: 0.0303508
+Area: 1.33078
+=> I(v) = 49%
+*/
+
+
+//CAULI COMPRESSED theta = -pi/14 + traslation : 0.94
+/*
+Area: 1.32138
+Area coeff: 
+Mean velocity: 0.0198389
+Vorticity: 0.298934
+Number of small velocities(<1e-3): 5254
+Number of high velocities(>1e-3): 5560
+Mean high velocities: 0.0308236
+I: 48.5852
+
+
+//CAULI MODIFICATO DI BRUTTO theta = pi/12 + traslation : 0.99 + y_trasl : 1.4
+Mean velocity: 0.0275964
+Vorticity: 0.298411
+Number of small velocities(<1e-3): 4346
+Number of high velocities(>1e-3): 6584
+Mean high velocities: 0.0334045
+Area: 1.32647
+I: 39.7621
+
+//CW MOD : theta : -pi/10 + x_trans : 0.95
+Mean velocity: 0.0274396
+Vorticity: 0.295412
+Number of small velocities(<1e-3): 4109
+Number of high velocities(>1e-3): 6754
+Mean high velocities: 0.0335245
+Area: 1.33321
+I: 37.8256
+
+// CW modificata di brutto  : theta : -pi/10, xmin = 0.2 ; x_tans : 0.9
+Mean velocity: 0.0301866
+Vorticity: 0.295778
+Number of small velocities(<1e-3): 3892
+Number of high velocities(>1e-3): 7074
+Mean high velocities: 0.0349754
+Area: 1.33156
+I: 35.4915
+
+//WindSock modificato : theta : -pi/24 ; x trans : 0.9 : NONONONO
+Mean velocity: 0.0360731
+Vorticity: 0.324443
+Number of small velocities(<1e-3): 3268
+Number of high velocities(>1e-3): 6882
+Mean high velocities: 0.0387157
+Area: 1.22406
+I: 32.197
+
+// CW super MOD : rot_(-pi_10)_x_0.89_y_1.2
+Mean velocity: 0.0371735
+Vorticity: 0.296458
+Number of small velocities(<1e-3): 3385
+Number of high velocities(>1e-3): 7646
+Mean high velocities: 0.0388788
+Area: 1.3308
+I: 30.6862
+
+// CW BRUTTA : rot_(-pi_10)_x_0.92_y_0.8
+Mean velocity: 0.0221838
+Vorticity: 0.291994
+Number of small velocities(<1e-3): 4357
+Number of high velocities(>1e-3): 6390
+Mean high velocities: 0.0285151
+Area: 1.3382
+I: 40.5415
+
+
+// FINAL RANKING (SAME AREA - different x) 
+/*
+1) CACTUS = 34.88 % (AREA = 1.32)
+2) CW = 36.07 % (AREA = 1.33)
+3) WindSock = 41.86 (AREA = 1.32)
+4) CAULI = 49% (AREA = 1.33)
+
+//AREE TAGLIATE a 0.6
+Area: 0.493751 : cauli
+Area: 0.60769 : cw
+Area: 0.583605 : windsock
+Area: 0.624424 : cactus
+
+
+REMARK: Result heavily dependent on the slope of the lower part!
+That's why Cauli is so bad: See analysis on the single shapes, for further info!
+
+Obiettivo : Dimostrare che imbuto e pendenza sono molto più significativi rispetto alla
+velocità (date queste boundary conditions sulla velocità).
+Per conoscere l'effetto delle forme servirebbe che la simulazione arrivasse alla fine di tutte le forme!
+
+
+// FORME TRASFORMATE PER 'MBUTO E SLOPE
+
+// CACTUS
+Mean velocity: 0.0278569
+Vorticity: 0.292687
+Number of small velocities(<1e-3): 4324
+Number of high velocities(>1e-3): 6372
+Mean high velocities: 0.0358474
+Area: 1.33121
+I: 40.4263
+
+// CW
+Mean velocity: 0.0148848
+Vorticity: 0.290066
+Number of small velocities(<1e-3): 5442
+Number of high velocities(>1e-3): 5306
+Mean high velocities: 0.0239309
+Area: 1.33284
+I: 50.6327
+
+// WINDSOCK
+Mean velocity: 0.0305007
+Vorticity: 0.293887
+Number of small velocities(<1e-3): 4329
+Number of high velocities(>1e-3): 6551
+Mean high velocities: 0.0367479
+Area: 1.33271
+I: 39.7886
+
+// CAULI
+Mean velocity: 0.041557
+Vorticity: 0.297591
+Number of small velocities(<1e-3): 3109
+Number of high velocities(>1e-3): 7807
+Mean high velocities: 0.0413016
+Area: 1.33012
+I: 28.4811
+
+Area cactus (cut) : 0.574641
+Area cw (cut): 0.482942
+Area windsock (cut): 0.610628
+Area cauli (cut): 0.58492
+
+Slope cactus : 0.08227559411747613
+Slope cw: 0.18151197088183946
+Slope windsock: 0.10795836334253033
+Slope cauli: 0.06330051857212189
+
+
+*/

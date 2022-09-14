@@ -1,0 +1,141 @@
+You chose the file "C:\Users\Lorenzo\Documents\Politecnico di Milano\V Anno - II Semestre\Scientific Computing Tools\MyHscripts\solveromework2\homework-2\scripts\solver.edp"
+-- FreeFem++ v4.5 (mar. 11 févr. 2020 20:59:29 - git v4.5-2-g95135963)
+ Load: lg_fem lg_mesh lg_mesh3 eigenvalue
+    1 : // 1. geometry
+    2 : //int n = 20;
+    3 : //mesh Th = square(n, n, flags=1);
+    4 :
+    5 : load "gmsh"(load: loadLibary C:\Program Files (x86)\FreeFem++\\.\gmsh = 0)
+    6 : mesh Th = gmshload("../geometries/LAA_CW.msh");
+    7 : plot(Th);
+    8 :
+    9 : // 2. finite element spaces
+   10 : fespace Vh(Th, [P2, P2, P1]);
+   11 :
+   12 : //real Re = 3e1;
+   13 : real Re = 2300; //1/0.0045;
+   14 :
+   15 : Vh [ux0h, uy0h, p0h],
+   16 :    [uxh, uyh, ph],
+   17 :    [vxh, vyh, qh],
+   18 :    [incrx, incry, incrp];
+   19 :
+   20 : // 3. variational forms
+   21 : macro Grad(f) [dx(f), dy(f)]  )  //
+   22 : macro Grad2(fx,fy) [dx(fx), dy(fx), dx(fy), dy(fy)]  )  //
+   23 : macro Div(fx,fy) (dx(fx) + dy(fy))  )  //
+   24 : macro UGrad(bx,by, f) [bx,by]' * Grad(f)  )  //
+   25 : macro UGrad2(bx,by, fx,fy) [UGrad(bx,by,fx), UGrad(bx,by,fy)]  )  //
+   26 :
+   27 : problem newton([uxh, uyh, ph], [vxh, vyh, qh]) =
+   28 :     int2d(Th)(UGrad2(ux0h, uy0h, uxh, uyh)    [UGrad(ux0h, uy0h, uxh)     [ux0h, uy0h]' * Grad( uxh)    [dx( uxhscripts\solver), dy( uxh)]  , UGrad(ux0h, uy0h, uyh)     [ux0h, uy0h]' * Grad( uyh)    [dx( uyh), dy( uyh)]  ] ' * [vxh, vyh]
+   29 :               + UGrad2(uxh, uyh, ux0h, uy0h)    [UGrad(uxh, uyh, ux0h)     [uxh, uyh]' * Grad( ux0h)    [dx( ux0scripts\solverh), dy( ux0h)]  , UGrad(uxh, uyh, uy0h)     [uxh, uyh]' * Grad( uy0h)    [dx( uy0h), dy( uy0h)]  ] ' * [vxh, vyh]
+   30 :               + (Grad2(uxh, uyh)      [dx(uxh), dy(uxh), dx( uyh), dy( uyh)] ' * Grad2(vxh, vyh)      [dx(vxh),
+scripts\solverdy(vxh), dx( vyh), dy( vyh)] ) / Re
+   31 :               - ph * Div(vxh, vyh)     (dx(vxh) + dy( vyh))
+   32 :               + Div(uxh, uyh)     (dx(uxh) + dy( uyh))  * qh)
+   33 :     - int2d(Th)(UGrad2(ux0h, uy0h, ux0h, uy0h)    [UGrad(ux0h, uy0h, ux0h)     [ux0h, uy0h]' * Grad( ux0h)    [dscripts\solverx( ux0h), dy( ux0h)]  , UGrad(ux0h, uy0h, uy0h)     [ux0h, uy0h]' * Grad( uy0h)    [dx( uy0h), dy( uy0h)]  ] ' * [vxh, vscripts\solveryh])
+   34 :     + on(2, uxh=0.0, uyh=-0.4)
+   35 :     + on(1, uxh=0.0, uyh=0.0)
+   36 :         + on(2, ph=0.0);
+   37 :
+   38 : func int step() {
+   39 :     // input: [ux0h, uy0h, p0h] -> old solution
+   40 :     // output: [uxh, uyh, ph] -> new solution
+   41 :     newton;
+   42 :     return 0;
+   43 : }
+   44 :
+   45 :
+   46 : func real error() {
+   47 :     // input: [ux0h, uy0h, p0h] -> old solution
+   48 :     // input: [uxh, uyh, ph] -> new solution
+   49 :
+   50 :     //real pmean = int2d(Th)(ph);
+   51 :     //[uxh, uyh, ph] = [uxh, uyh, ph] - [0, 0, pmean];
+   52 :     //real p0mean = int2d(Th)(p0h);
+   53 :
+   54 :     incrx[] = uxh[];
+   55 :     incrx[] -= ux0h[];
+   56 :
+   57 :     real erru = int2d(Th)(dx(incrx)^2 + dy(incrx)^2 +
+   58 :                           dx(incry)^2 + dy(incry)^2 +
+   59 :                           incrx^2 + incry^2);
+   60 :     //real errp = int2d(Th)((incrp)^2);
+   61 :     real normu = int2d(Th)(dx(ux0h)^2 + dy(ux0h)^2 +
+   62 :                            dx(uy0h)^2 + dy(uy0h)^2 +
+   63 :                            ux0h^2 + uy0h^2);
+   64 :     //real normp = int2d(Th)((p0h-p0mean)^2);
+   65 :
+   66 :     return sqrt(erru / normu); //+ sqrt(errp / normp);
+   67 : }
+   68 :
+   69 : // 4. nonlinear solver
+   70 : int nbiter = 15;
+   71 : real eps = 1.e-3;
+   72 :
+   73 : [ux0h, uy0h, p0h] = [0.0, 0.0, 0.0];
+   74 : step();
+   75 : [ux0h, uy0h, p0h] = [uxh, uyh, ph];
+   76 :
+   77 : int iter = 0;
+   78 : for (iter = 0; iter < nbiter; ++iter) {
+   79 :     int errc = step();
+   80 :     if (errc != 0) {
+   81 :         cout << "ERROR: iteration " << iter << " failed!" << endl;
+   82 :         break;
+   83 :     }
+   84 :     if (error() < eps)
+   85 :         break;
+   86 :     [ux0h, uy0h, p0h] = [uxh, uyh, ph];
+   87 : }
+   88 :
+   89 : cout << "# iter: " << iter << endl;
+   90 :
+   91 : // 8. solution
+   92 : plot(ph, nbiso=100, fill=1, wait=1, cmm="Pressure");
+   93 : plot(uxh, nbiso=100, fill=1, wait=1, cmm="Velocity X");
+   94 : plot(uyh, nbiso=100, fill=1, wait=1, cmm="Velocity Y");
+   95 : plot([ux0h, uy0h], fill=1, wait=1, cmm="Velocity");
+   96 :
+   97 :
+   98 :  sizestack + 1024 =3456  ( 2432 )
+ 
+  -- Solve :
+          min -0.4  max 0.101057
+  -- Solve :
+          min -0.490054  max 0.72036
+  -- Solve :
+          min -0.403448  max 0.362234
+  -- Solve :
+          min -0.4  max 0.21849
+  -- Solve :
+          min -0.553568  max 0.484333
+  -- Solve :
+          min -0.422611  max 0.243893
+  -- Solve :
+          min -0.4  max 0.14006
+  -- Solve :
+          min -0.4  max 0.181531
+  -- Solve :
+          min -0.4  max 0.146047
+  -- Solve :
+          min -0.569938  max 0.551039
+  -- Solve :
+          min -1.91303  max 1.32685
+  -- Solve :
+          min -2.76854  max 1.95331
+  -- Solve :
+          min -23.4266  max 14.0012
+  -- Solve :
+          min -16.3203  max 33.3191
+  -- Solve :
+          min -7.77269  max 5.99217
+  -- Solve :
+          min -69.4516  max 145.264
+# iter: 15
+times: compile 0.283s, execution 61.812s,  mpirank:0
+ ######## We forget of deleting   -6 Nb pointer,   0Bytes  ,  mpirank 0, memory leak =0
+ CodeAlloc : nb ptr  3784,  size :483472 mpirank: 0
+Ok: Normal End
+ try getConsole C:\Users\Lorenzo\Documents\Politecnico di Milano\V Anno - II Semestre\Scientific Computing Tools\MyHomewscripts\solverork2\homework-2\scripts\solver.edp

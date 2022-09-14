@@ -1,0 +1,108 @@
+// 1. geometry
+//int n = 20;
+//mesh Th = square(n, n, flags=1);
+
+load "gmsh"
+mesh Th = gmshload("../geometries/LAA_CW.msh");
+plot(Th);
+
+// 2. finite element spaces
+fespace Vh(Th, [P2, P2, P1]);
+fespace Xh(Th, P0);
+
+//real Re = 3e1;
+real Re = 2000; //1/0.0045;
+
+Vh [ux0h, uy0h, p0h],
+   [uxh, uyh, ph],
+   [vxh, vyh, qh],
+   [incrx, incry, incrp];
+Xh deltaK, uK;
+
+// 3. variational forms
+macro Grad(f) [dx(f), dy(f)] //
+macro Grad2(fx,fy) [dx(fx), dy(fx), dx(fy), dy(fy)] //
+macro Div(fx,fy) (dx(fx) + dy(fy)) //
+macro UGrad(bx,by, f) [bx,by]' * Grad(f) //
+macro UGrad2(bx,by, fx,fy) [UGrad(bx,by,fx), UGrad(bx,by,fy)] //
+
+problem newton([uxh, uyh, ph], [vxh, vyh, qh]) =
+    int2d(Th)(UGrad2(ux0h, uy0h, uxh, uyh)' * [vxh, vyh]
+              + UGrad2(uxh, uyh, ux0h, uy0h)' * [vxh, vyh]
+              + (Grad2(uxh, uyh)' * Grad2(vxh, vyh)) / Re
+              - ph * Div(vxh, vyh)
+              + Div(uxh, uyh) * qh
+			  + deltaK * (UGrad(ux0h, uy0h, uxh) + UGrad(uxh, uyh, ux0h) + dx(ph)) *
+                         (UGrad(ux0h, uy0h, vxh) + UGrad(vxh, vyh, ux0h) + dx(qh))
+			  + deltaK * (UGrad(ux0h, uy0h, uyh) + UGrad(uxh, uyh, uy0h) + dy(ph)) *
+                         (UGrad(ux0h, uy0h, vyh) + UGrad(vxh, vyh, uy0h) + dy(qh))
+              + deltaK * Div(uxh, uyh) * Div(vxh, vyh))
+    - int2d(Th)(UGrad2(ux0h, uy0h, ux0h, uy0h)' * [vxh, vyh]
+			  + deltaK * (UGrad(ux0h, uy0h, ux0h)) *
+                         (UGrad(ux0h, uy0h, vxh) + UGrad(vxh, vyh, ux0h) + dx(qh))
+              + deltaK * (UGrad(ux0h, uy0h, uy0h)) *
+                         (UGrad(ux0h, uy0h, vyh) + UGrad(vxh, vyh, uy0h) + dy(qh)))
+    + on(2, uxh=0.0, uyh=-4.0)
+    + on(1, uxh=0.0, uyh=0.0);
+
+func int step() {
+    // input: [ux0h, uy0h, p0h] -> old solution
+    // output: [uxh, uyh, ph] -> new solution
+	uK = sqrt(ux0h^2 + uy0h^2);
+	Xh Rel = hTriangle * uK * Re;
+    deltaK = hTriangle/(1.e-15 + uK) * min(1.0, Rel);	
+    newton;
+    return 0;
+}
+
+
+func real error() {
+    // input: [ux0h, uy0h, p0h] -> old solution
+    // input: [uxh, uyh, ph] -> new solution
+
+    real pmean = int2d(Th)(ph);
+    [uxh, uyh, ph] = [uxh, uyh, ph] - [0, 0, pmean];
+    real p0mean = int2d(Th)(p0h);
+
+    incrx[] = uxh[];
+    incrx[] -= ux0h[];
+
+    real erru = int2d(Th)(dx(incrx)^2 + dy(incrx)^2 +
+                          dx(incry)^2 + dy(incry)^2 +
+                          incrx^2 + incry^2);
+    real errp = int2d(Th)((incrp)^2);
+    real normu = int2d(Th)(dx(ux0h)^2 + dy(ux0h)^2 +
+                           dx(uy0h)^2 + dy(uy0h)^2 +
+                           ux0h^2 + uy0h^2);
+    real normp = int2d(Th)((p0h-p0mean)^2);
+
+    return sqrt(erru / normu) + sqrt(errp / normp);
+}
+
+// 4. nonlinear solver
+int nbiter = 3;
+real eps = 1.e-3;
+
+[ux0h, uy0h, p0h] = [0.0, 0.0, 0.0];
+step();
+[ux0h, uy0h, p0h] = [uxh, uyh, ph];
+
+int iter = 0;
+for (iter = 0; iter < nbiter; ++iter) {
+    int errc = step();
+    if (errc != 0) {
+        cout << "ERROR: iteration " << iter << " failed!" << endl;
+        break;
+    }
+    if (error() < eps)
+        break;
+    [ux0h, uy0h, p0h] = [uxh, uyh, ph];
+}
+
+cout << "# iter: " << iter << endl;
+
+// 8. solution
+plot(ph, nbiso=100, fill=1, wait=1, cmm="Pressure");
+plot(uxh, nbiso=100, fill=1, wait=1, cmm="Velocity X");
+plot(uyh, nbiso=100, fill=1, wait=1, cmm="Velocity Y");
+plot([ux0h, uy0h], fill=1, wait=1, cmm="Velocity");

@@ -1,0 +1,7 @@
+# Control points
+
+list_by_hand = [0,1,2,4,7,10,12,14,15,16,17,18,20,22,24,25,26,27,28,30,31,32,33,35,36,37,40,42,44,45,48,50,52,54]
+
+You can remove some points, paying attention to how shape changes. It may be required to change eps.
+Mind that the more control points you add (remove), the more eps has to be big (small). Moreover, if eps is too small, then the RBF could unstable. However, if eps is too big, the shape model is not so effective.
+

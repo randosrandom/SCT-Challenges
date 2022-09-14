@@ -1,0 +1,302 @@
+You chose the file "C:\Users\Lorenzo\Documents\Politecnico di Milano\V Anno - II Semestre\Scientific Computing Tools\MyH‚ƒy…x{À?omework2\homework-2\scripts\solverfp.edp"
+-- FreeFem++ v4.5 (mar. 11 fÃ©vr. 2020 20:59:29 - git v4.5-2-g95135963)
+ Load: lg_fem lg_mesh lg_mesh3 eigenvalue
+    1 : // 1. geometry
+    2 : load "gmsh"(load: loadLibary C:\Program Files (x86)\FreeFem++\\.\gmsh = 0)
+    3 : load "iovtk"(load: loadLibary C:\Program Files (x86)\FreeFem++\\.\iovtk = 0) load: iovtk
+ 
+    4 :
+    5 : //mesh Th = gmshload("../our_scripts/geometries/new_meshes/windsock.msh");
+    6 : //mesh Th = gmshload("../our_scripts/geometries/new_meshes/cw.msh");
+    7 : mesh Th = gmshload("../our_scripts/geometries/new_meshes/cactus.msh");
+    8 : //mesh Th = gmshload("../our_scripts/geometries/new_meshes/cauli.msh");
+    9 : plot(Th);
+   10 :
+   11 : // 2. finite element spaces
+   12 : fespace Vh(Th, [P2, P2, P1]);
+   13 : fespace Xh(Th, P0);
+   14 :
+   15 : real Re = 2300;
+   16 :
+   17 : Vh [ux0h, uy0h, p0h],
+   18 :    [uxh, uyh, ph],
+   19 :    [vxh, vyh, qh],
+   20 :    [incrx, incry, incrp];
+   21 : Xh deltaK, uK;
+   22 :
+   23 : // 3. variational forms
+   24 : macro Grad(f) [dx(f), dy(f)]  )  //
+   25 : macro Grad2(fx,fy) [dx(fx), dy(fx), dx(fy), dy(fy)]  )  //
+   26 : macro Div(fx,fy) (dx(fx) + dy(fy))  )  //
+   27 : macro UGrad(bx,by, f) [bx,by]' * Grad(f)  )  //
+   28 : macro UGrad2(bx,by, fx,fy) [UGrad(bx,by,fx), UGrad(bx,by,fy)]  )  //
+   29 : macro Lapl(f) (dxx(f) + dyy(f))  )  //
+   30 : macro Lapl2(fx,fy) [Lapl(fx), Lapl(fy)]  )  //
+   31 :
+   32 : problem fixedpoint([uxh, uyh, ph], [vxh, vyh, qh]) =
+   33 :     int2d(Th)(UGrad2(ux0h, uy0h, uxh, uyh)    [UGrad(ux0h, uy0h, uxh)     [ux0h, uy0h]' * Grad( uxh)    [dx( uxh‚ƒy…x{À?), dy( uxh)]  , UGrad(ux0h, uy0h, uyh)     [ux0h, uy0h]' * Grad( uyh)    [dx( uyh), dy( uyh)]  ] ' * [vxh, vyh]
+   34 :               + 0.5 * Div(ux0h, uy0h)     (dx(ux0h) + dy( uy0h))  * [uxh,uyh]' * [vxh, vyh]
+   35 :               + (Grad2(uxh, uyh)      [dx(uxh), dy(uxh), dx( uyh), dy( uyh)] ' * Grad2(vxh, vyh)      [dx(vxh),
+‚ƒy…x{À?dy(vxh), dx( vyh), dy( vyh)] ) / Re
+   36 :               - ph * Div(vxh, vyh)     (dx(vxh) + dy( vyh))
+   37 :               + Div(uxh, uyh)     (dx(uxh) + dy( uyh))  * qh
+   38 :               + deltaK * (-Lapl(uxh)     (dxx(uxh) + dyy(uxh))  / Re + UGrad(ux0h, uy0h, uxh)     [ux0h, uy0h]'
+‚ƒy…x{À?* Grad( uxh)    [dx( uxh), dy( uxh)]   + Div(ux0h, uy0h)     (dx(ux0h) + dy( uy0h))  * uxh / 2 + dx(ph)) *
+   39 :                          (UGrad(ux0h, uy0h, vxh)     [ux0h, uy0h]' * Grad( vxh)    [dx( vxh), dy( vxh)]   + Div(‚ƒy…x{À?ux0h, uy0h)     (dx(ux0h) + dy( uy0h))  * vxh / 2 + dx(qh))
+   40 :               + deltaK * (-Lapl(uyh)     (dxx(uyh) + dyy(uyh))  / Re + UGrad(ux0h, uy0h, uyh)     [ux0h, uy0h]'
+‚ƒy…x{À?* Grad( uyh)    [dx( uyh), dy( uyh)]   + Div(ux0h, uy0h)     (dx(ux0h) + dy( uy0h))  * uyh / 2 + dy(ph)) *
+   41 :                          (UGrad(ux0h, uy0h, vyh)     [ux0h, uy0h]' * Grad( vyh)    [dx( vyh), dy( vyh)]   + Div(‚ƒy…x{À?ux0h, uy0h)     (dx(ux0h) + dy( uy0h))  * vyh / 2 + dy(qh))
+   42 :               + deltaK * Div(uxh, uyh)     (dx(uxh) + dy( uyh))  * Div(vxh, vyh)     (dx(vxh) + dy( vyh)) )
+   43 :     + on(2, uxh=0.0, uyh=-0.4)
+   44 :     + on(1, uxh=0.0, uyh=0.0)
+   45 :         + on(2, ph=0);
+   46 :
+   47 : /*varf residual([ux,uy,p],[vx,vy,q]) =
+   48 :     int2d(Th)(UGrad2(uxh, uyh, uxh, uyh)' * [vx, vy]
+   49 :               + 0.5 * Div(uxh, uyh) * [uxh,uyh]' * [vx, vy]
+   50 :               + (Grad2(uxh, uyh)' * Grad2(vx, vy)) / Re
+   51 :               - ph * Div(vx, vy)
+   52 :               + Div(uxh, uyh) * q
+   53 :               + deltaK * (-Lapl(uxh) / Re + UGrad(uxh, uyh, uxh) + Div(uxh, uyh) * uxh / 2 + dx(ph)) *
+   54 :                          (UGrad(uxh, uyh, vx) + Div(uxh, uyh) * vx / 2 + dx(q))
+   55 :               + deltaK * (-Lapl(uyh) / Re + UGrad(uxh, uyh, uyh) + Div(uxh, uyh) * uyh / 2 + dy(ph)) *
+   56 :                          (UGrad(uxh, uyh, vy) + Div(uxh, uyh) * vy / 2 + dy(q))
+   57 :               + deltaK * Div(uxh, uyh) * Div(vx, vy))
+   58 :     + on(2, ux=0, uy=-0.4)
+   59 :     + on(1, ux=0, uy=0);*/
+   60 :
+   61 : func int step() {
+   62 :     // input: [ux0h, uy0h, p0h] -> old solution
+   63 :     // output: [uxh, uyh, ph] -> new solution
+   64 :     uK = sqrt(ux0h^2 + uy0h^2);    // interpolation P* -> P0
+   65 :     deltaK = 0.25 * hTriangle / (1.e-15 + uK) *
+   66 :               min(1.0, hTriangle * uK * Re);
+   67 :     fixedpoint;
+   68 :         int[int] Order = [1];
+   69 :         string DataName = "u";
+   70 :         savevtk("windsock_u.vtu", Th, uK, deltaK, dataname=DataName, order=Order);
+   71 :     return 0;
+   72 : }
+   73 :
+   74 : real[int] res(Vh.ndof);
+   75 :
+   76 : /*func real error() {
+   77 :     // input: [ux0h, uy0h, p0h] -> old solution
+   78 :     // input: [uxh, uyh, ph] -> new solution
+   79 :     res = residual(0, Vh);
+   80 :     return sqrt(res' * res);
+   81 : }*/
+   82 :
+   83 : func real error() {
+   84 :     // input: [ux0h, uy0h, p0h] -> old solution
+   85 :     // input: [uxh, uyh, ph] -> new solution
+   86 :
+   87 :     //real pmean = int2d(Th)(ph);
+   88 :     //[uxh, uyh, ph] = [uxh, uyh, ph] - [0, 0, pmean];
+   89 :     //real p0mean = int2d(Th)(p0h);
+   90 :
+   91 :     incrx[] = uxh[];
+   92 :     incrx[] -= ux0h[];
+   93 :
+   94 :     real erru = int2d(Th)(dx(incrx)^2 + dy(incrx)^2 +
+   95 :                           dx(incry)^2 + dy(incry)^2 +
+   96 :                           incrx^2 + incry^2);
+   97 :     //real errp = int2d(Th)((incrp)^2);
+   98 :     real normu = int2d(Th)(dx(ux0h)^2 + dy(ux0h)^2 +
+   99 :                            dx(uy0h)^2 + dy(uy0h)^2 +
+  100 :                            ux0h^2 + uy0h^2);
+  101 :     //real normp = int2d(Th)((p0h-p0mean)^2);
+  102 :
+  103 :     return sqrt(erru / normu); // + sqrt(errp / normp);
+  104 : }
+  105 :
+  106 : // 4. nonlinear solver
+  107 : int nbiter = 15;
+  108 : real eps = 1.e-6;
+  109 :
+  110 : [ux0h, uy0h, p0h] = [0.0, 0.0, 0.0];
+  111 : fixedpoint;
+  112 : [ux0h, uy0h, p0h] = [uxh, uyh, ph];
+  113 :
+  114 : int iter = 0;
+  115 : for (iter = 0; iter < nbiter; ++iter) {
+  116 :     int errc = step();
+  117 :     if (errc != 0) {
+  118 :         cout << "ERROR: iteration " << iter << " failed!" << endl;
+  119 :         break;
+  120 :     }
+  121 :     if (error() < eps)
+  122 :         break;
+  123 :     [ux0h, uy0h, p0h] = [uxh, uyh, ph];
+  124 : }
+  125 :
+  126 :
+  127 :
+  128 : cout << "# iter: " << iter << endl;
+  129 :
+  130 : // 8. solution
+  131 : ofstream gnu("windsock_plot.gp");
+  132 : plot(ph, nbiso=100, fill=1, wait=1, value=true, cmm="Pressure");
+  133 : plot(uxh, nbiso=100, fill=1, wait=1, value=true, cmm="Velocity X");
+  134 : plot(uyh, nbiso=100, fill=1, wait=1, value=true, cmm="Velocity Y");
+  135 : plot([ux0h, uy0h], fill=1, wait=1, value=true, cmm="Velocity");
+  136 :
+  137 : cout << "Mean velocity: " << int2d(Th)(sqrt((uxh^2 + uyh^2)))/int2d(Th)(1) << endl;
+  138 : // cactus: 0.0548828
+  139 : // chicken wing: 0.030714
+  140 : // windsock: 0.027833
+  141 : // cauliflower: 0.0284562
+  142 :
+  143 : cout << "Vorticity: " << int2d(Th)(dx(uyh) - dy(uxh))/int2d(Th)(1) << endl;
+  144 : // cactus: 0.303279
+  145 : // chicken wing: 0.172463
+  146 : // windsock: 0.227074
+  147 : // cauliflower: 0.380919
+  148 :
+  149 : /* cout << "Max velocity:" << uxh[].max << endl;
+  150 : // cactus: 0.191176
+  151 : // chicken wing: 0.182473
+  152 : // windsock: 0.153145
+  153 : // cauliflower: 0.193596 */
+  154 :
+  155 : real tolerance = 1e-3;
+  156 : int count = 0;
+  157 : real sum = 0;
+  158 : for(int i=0; i<Vh.ndof; i++){
+  159 :         if(sqrt(uxh[][i]^2 + uyh[][i]^2) > tolerance){
+  160 :                 count++;
+  161 :                 sum += sqrt(uxh[][i]^2 + uyh[][i]^2);
+  162 :         }
+  163 : }
+  164 :
+  165 : cout << "Number of small velocities(<1e-3): " << Vh.ndof - count << endl;
+  166 : // cactus: 10200                %: 21.8635
+  167 : // chicken wing: 27654  %: 33.9696
+  168 : // windsock: 22706              %: 36.5547
+  169 : // cauliflower: 13257   %: 35.6553
+  170 :
+  171 : cout << "Number of high velocities(>1e-3): " << count << endl;
+  172 : // cactus: 36453
+  173 : // chicken wing: 53754
+  174 : // windsock: 39409
+  175 : // cauliflower: 23924
+  176 :
+  177 : cout << "Mean high velocities: " << sum/count << endl;
+  178 : // cactus: 0.0545745
+  179 : // chicken wing: 0.0372268
+  180 : // windsock: 0.035746
+  181 : // cauliflower: 0.0347271
+  182 :
+  183 : //-----------------------------------------------------------------------------------
+  184 : // FAIR COMPARISON DATA:
+  185 :
+  186 : //Area coeff = Area of this mesh/Max of area between meshes
+  187 : // WINDSOCK
+  188 : /*
+  189 : Area: 1.31989
+  190 : Area coeff =
+  191 : Mean velocity: 0.0231116
+  192 : Vorticity: 0.300651
+  193 : Number of small velocities(<1e-3): 4469
+  194 : Number of high velocities(>1e-3): 6207
+  195 : Mean high velocities: 0.0296915
+  196 : => I(v) = 41.86%
+  197 : */
+  198 :
+  199 : // CW
+  200 : /*
+  201 : Area: 1.63097
+  202 : Area coeff:
+  203 : Mean velocity: 0.0262477
+  204 : Vorticity: 0.241482
+  205 : Number of small velocities(<1e-3): 4791
+  206 : Number of high velocities(>1e-3): 7914
+  207 : Mean high velocities: 0.0327554
+  208 : => I(v) = 37.70 %
+  209 : */
+  210 :
+  211 : // CACTUS
+  212 : /*
+  213 : Area: 1.25164
+  214 : Area coeff:
+  215 : Mean velocity: 0.033607
+  216 : Vorticity: 0.313227
+  217 : Number of small velocities(<1e-3): 3505
+  218 : Number of high velocities(>1e-3): 6713
+  219 : Mean high velocities: 0.0369786
+  220 : => I(v) = 34.30
+  221 : */
+  222 :
+  223 : //CAULI
+  224 : /*
+  225 : Area: 1.26074
+  226 : Area coeff:
+  227 : Mean velocity: 0.0217861
+  228 : Vorticity: 0.312317
+  229 : Number of small velocities(<1e-3): 4954
+  230 : Number of high velocities(>1e-3): 5548
+  231 : Mean high velocities: 0.0306648
+  232 : I(v) = 47.17%
+  233 : */
+  234 :
+  235 : cout << "Area: " << int2d(Th)(1) << endl; sizestack + 1024 =11460  ( 10436 )
+ 
+  -- Solve :
+          min -0.4  max 0.0849531
+  -- Solve :
+          min -0.42113  max 0.174244
+ 0x8ea92a0 VTK_FILE 2
+  -- Solve :
+          min -0.416332  max 0.109201
+ 0x8ea8be0 VTK_FILE 2
+  -- Solve :
+          min -0.417185  max 0.121026
+ 0x8ea8820 VTK_FILE 2
+  -- Solve :
+          min -0.416654  max 0.117538
+ 0x8ea91e0 VTK_FILE 2
+  -- Solve :
+          min -0.416842  max 0.118967
+ 0x8ea8c40 VTK_FILE 2
+  -- Solve :
+          min -0.416775  max 0.118866
+ 0x8ea90c0 VTK_FILE 2
+  -- Solve :
+          min -0.416799  max 0.119073
+ 0x8ea8820 VTK_FILE 2
+  -- Solve :
+          min -0.416792  max 0.119124
+ 0x8ea8fd0 VTK_FILE 2
+  -- Solve :
+          min -0.416794  max 0.119191
+ 0x8ea9180 VTK_FILE 2
+  -- Solve :
+          min -0.416792  max 0.119221
+ 0x8ea8e50 VTK_FILE 2
+  -- Solve :
+          min -0.416792  max 0.119249
+ 0x8ea8820 VTK_FILE 2
+  -- Solve :
+          min -0.416791  max 0.119266
+ 0x8ea8a60 VTK_FILE 2
+  -- Solve :
+          min -0.416791  max 0.119279
+ 0x8ea8b50 VTK_FILE 2
+  -- Solve :
+          min -0.41679  max 0.119289
+ 0x8ea8970 VTK_FILE 2
+  -- Solve :
+          min -0.41679  max 0.119295
+ 0x8ea8d30 VTK_FILE 2
+# iter: 15
+Mean velocity: 0.033607
+Vorticity: 0.313227
+Number of small velocities(<1e-3): 3505
+Number of high velocities(>1e-3): 6713
+Mean high velocities: 0.0369786
+Area: 1.25164
+times: compile 1.091s, execution 19.406s,  mpirank:0
+ ######## We forget of deleting   -9 Nb pointer,   0Bytes  ,  mpirank 0, memory leak =0
+ CodeAlloc : nb ptr  4200,  size :501560 mpirank: 0
+Ok: Normal End
+ try getConsole C:\Users\Lorenzo\Documents\Politecnico di Milano\V Anno - II Semestre\Scientific Computing Tools\MyHomew‚ƒy…x{À?ork2\homework-2\scripts\solverfp.edp

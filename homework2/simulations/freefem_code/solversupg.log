@@ -1,0 +1,149 @@
+You chose the file "C:\Users\Lorenzo\Documents\Politecnico di Milano\V Anno - II Semestre\Scientific Computing Tools\MyHomework2\homework-2\scripts\solversupg.edp"
+-- FreeFem++ v4.5 (mar. 11 févr. 2020 20:59:29 - git v4.5-2-g95135963)
+ Load: lg_fem lg_mesh lg_mesh3 eigenvalue
+    1 : // 1. geometry
+    2 : //int n = 40;
+    3 : //mesh Th = square(n, n, flags=1);
+    4 :
+    5 : load "gmsh"(load: loadLibary C:\Program Files (x86)\FreeFem++\\.\gmsh = 0)
+    6 : mesh Th = gmshload("../geometries/LAA_CW.msh");
+    7 : plot(Th);
+    8 :
+    9 : // 2. finite element spaces
+   10 : fespace Vh(Th, [P2, P2, P1]);
+   11 : fespace Xh(Th, P0);
+   12 :
+   13 : real Re = 2000;
+   14 :
+   15 : Vh [ux0h, uy0h, p0h],
+   16 :    [uxh, uyh, ph],
+   17 :    [vxh, vyh, qh],
+   18 :    [incrx, incry, incrp];
+   19 : Xh deltaK, uK;
+   20 :
+   21 : // 3. variational forms
+   22 : macro Grad(f) [dx(f), dy(f)]  )  //
+   23 : macro Grad2(fx,fy) [dx(fx), dy(fx), dx(fy), dy(fy)]  )  //
+   24 : macro Div(fx,fy) (dx(fx) + dy(fy))  )  //
+   25 : macro UGrad(bx,by, f) [bx,by]' * Grad(f)  )  //
+   26 : macro UGrad2(bx,by, fx,fy) [UGrad(bx,by,fx), UGrad(bx,by,fy)]  )  //
+   27 :
+   28 : problem newton([uxh, uyh, ph], [vxh, vyh, qh]) =
+   29 :     int2d(Th)(UGrad2(ux0h, uy0h, uxh, uyh)    [UGrad(ux0h, uy0h, uxh)     [ux0h, uy0h]' * Grad( uxh)    [dx( uxh), dy( uxh)]  , UGrad(ux0h, uy0h, uyh)     [ux0h, uy0h]' * Grad( uyh)    [dx( uyh), dy( uyh)]  ] ' * [vxh, vyh]
+   30 :               + UGrad2(uxh, uyh, ux0h, uy0h)    [UGrad(uxh, uyh, ux0h)     [uxh, uyh]' * Grad( ux0h)    [dx( ux0h), dy( ux0h)]  , UGrad(uxh, uyh, uy0h)     [uxh, uyh]' * Grad( uy0h)    [dx( uy0h), dy( uy0h)]  ] ' * [vxh, vyh]
+   31 :               + (Grad2(uxh, uyh)      [dx(uxh), dy(uxh), dx( uyh), dy( uyh)] ' * Grad2(vxh, vyh)      [dx(vxh),
+dy(vxh), dx( vyh), dy( vyh)] ) / Re
+   32 :               - ph * Div(vxh, vyh)     (dx(vxh) + dy( vyh))
+   33 :               + Div(uxh, uyh)     (dx(uxh) + dy( uyh))  * qh
+   34 :               + deltaK * (UGrad(ux0h, uy0h, uxh)     [ux0h, uy0h]' * Grad( uxh)    [dx( uxh), dy( uxh)]   + UGrad(uxh, uyh, ux0h)     [uxh, uyh]' * Grad( ux0h)    [dx( ux0h), dy( ux0h)]   + dx(ph)) *
+   35 :                          (UGrad(ux0h, uy0h, vxh)     [ux0h, uy0h]' * Grad( vxh)    [dx( vxh), dy( vxh)]   + UGrad(vxh, vyh, ux0h)     [vxh, vyh]' * Grad( ux0h)    [dx( ux0h), dy( ux0h)]   + dx(qh))
+   36 :               + deltaK * (UGrad(ux0h, uy0h, uyh)     [ux0h, uy0h]' * Grad( uyh)    [dx( uyh), dy( uyh)]   + UGrad(uxh, uyh, uy0h)     [uxh, uyh]' * Grad( uy0h)    [dx( uy0h), dy( uy0h)]   + dy(ph)) *
+   37 :                          (UGrad(ux0h, uy0h, vyh)     [ux0h, uy0h]' * Grad( vyh)    [dx( vyh), dy( vyh)]   + UGrad(vxh, vyh, uy0h)     [vxh, vyh]' * Grad( uy0h)    [dx( uy0h), dy( uy0h)]   + dy(qh))
+   38 :               + deltaK * Div(uxh, uyh)     (dx(uxh) + dy( uyh))  * Div(vxh, vyh)     (dx(vxh) + dy( vyh)) )
+   39 :     - int2d(Th)(UGrad2(ux0h, uy0h, ux0h, uy0h)    [UGrad(ux0h, uy0h, ux0h)     [ux0h, uy0h]' * Grad( ux0h)    [dx( ux0h), dy( ux0h)]  , UGrad(ux0h, uy0h, uy0h)     [ux0h, uy0h]' * Grad( uy0h)    [dx( uy0h), dy( uy0h)]  ] ' * [vxh, vyh]
+   40 :                 + deltaK * (UGrad(ux0h, uy0h, ux0h)     [ux0h, uy0h]' * Grad( ux0h)    [dx( ux0h), dy( ux0h)]  ) *
+   41 :                            (UGrad(ux0h, uy0h, vxh)     [ux0h, uy0h]' * Grad( vxh)    [dx( vxh), dy( vxh)]   + UGrad(vxh, vyh, ux0h)     [vxh, vyh]' * Grad( ux0h)    [dx( ux0h), dy( ux0h)]   + dx(qh))
+   42 :                 + deltaK * (UGrad(ux0h, uy0h, uy0h)     [ux0h, uy0h]' * Grad( uy0h)    [dx( uy0h), dy( uy0h)]  ) *
+   43 :                            (UGrad(ux0h, uy0h, vyh)     [ux0h, uy0h]' * Grad( vyh)    [dx( vyh), dy( vyh)]   + UGrad(vxh, vyh, uy0h)     [vxh, vyh]' * Grad( uy0h)    [dx( uy0h), dy( uy0h)]   + dy(qh)))
+   44 :     + on(2, uxh=0.0, uyh=-0.4)
+   45 :     + on(1, uxh=0.0, uyh=0.0)
+   46 :         + on(2, ph=0.0);
+   47 :
+   48 : func int step() {
+   49 :     // input: [ux0h, uy0h, p0h] -> old solution
+   50 :     // output: [uxh, uyh, ph] -> new solution
+   51 :     uK = sqrt(ux0h^2 + uy0h^2);    // interpolation P* -> P0
+   52 :     deltaK = hTriangle / (1.e-15 + uK) *
+   53 :               min(1.0, hTriangle * uK * Re);
+   54 :     newton;
+   55 :     return 0;
+   56 : }
+   57 :
+   58 :
+   59 : func real error() {
+   60 :     // input: [ux0h, uy0h, p0h] -> old solution
+   61 :     // input: [uxh, uyh, ph] -> new solution
+   62 :
+   63 :     real pmean = int2d(Th)(ph);
+   64 :     [uxh, uyh, ph] = [uxh, uyh, ph] - [0, 0, pmean];
+   65 :     real p0mean = int2d(Th)(p0h);
+   66 :
+   67 :     incrx[] = uxh[];
+   68 :     incrx[] -= ux0h[];
+   69 :
+   70 :     real erru = int2d(Th)(dx(incrx)^2 + dy(incrx)^2 +
+   71 :                           dx(incry)^2 + dy(incry)^2 +
+   72 :                           incrx^2 + incry^2);
+   73 :     real errp = int2d(Th)((incrp)^2);
+   74 :     real normu = int2d(Th)(dx(ux0h)^2 + dy(ux0h)^2 +
+   75 :                            dx(uy0h)^2 + dy(uy0h)^2 +
+   76 :                            ux0h^2 + uy0h^2);
+   77 :     real normp = int2d(Th)((p0h-p0mean)^2);
+   78 :
+   79 :     return sqrt(erru / normu) + sqrt(errp / normp);
+   80 : }
+   81 :
+   82 : // 4. nonlinear solver
+   83 : int nbiter = 15;
+   84 : real eps = 1.e-3;
+   85 :
+   86 : [ux0h, uy0h, p0h] = [0.0, 0.0, 0.0];
+   87 : step();
+   88 : [ux0h, uy0h, p0h] = [uxh, uyh, ph];
+   89 :
+   90 : int iter = 0;
+   91 : for (iter = 0; iter < nbiter; ++iter) {
+   92 :     int errc = step();
+   93 :     if (errc != 0) {
+   94 :         cout << "ERROR: iteration " << iter << " failed!" << endl;
+   95 :         break;
+   96 :     }
+   97 :     if (error() < eps)
+   98 :         break;
+   99 :     [ux0h, uy0h, p0h] = [uxh, uyh, ph];
+  100 : }
+  101 :
+  102 : cout << "# iter: " << iter << endl;
+  103 :
+  104 : // 8. solution
+  105 : plot(ph, nbiso=100, fill=1, wait=1, cmm="Pressure");
+  106 : plot(uxh, nbiso=100, fill=1, wait=1, cmm="Velocity X");
+  107 : plot(uyh, nbiso=100, fill=1, wait=1, cmm="Velocity Y");
+  108 : plot([ux0h, uy0h], fill=1, wait=1, cmm="Velocity");
+  109 :  sizestack + 1024 =15592  ( 14568 )
+ 
+  -- Solve :
+          min -0.4  max 0.101057
+  -- Solve :
+          min -0.4  max 0.240784
+  -- Solve :
+          min -0.4  max 0.228737
+  -- Solve :
+          min -0.524677  max 0.306441
+  -- Solve :
+          min -0.4  max 0.225031
+  -- Solve :
+          min -0.4  max 0.250649
+  -- Solve :
+          min -0.560013  max 0.907636
+  -- Solve :
+          min -0.967581  max 0.629108
+  -- Solve :
+          min -0.6526  max 0.631687
+  -- Solve :
+          min -7.09837  max 4.00521
+  -- Solve :
+          min -43.6463  max 41.4864
+  -- Solve :
+          min -383.84  max 295.332
+  -- Solve :
+          min -887.459  max 1181.23
+  -- Solve :
+          min -9749.96  max 10809.9
+  -- Solve :
+          min -35824.9  max 20674.6
+  -- Solve :
+          min -12591.7  max 7281.24
+# iter: 15
+times: compile 0.299s, execution 93.112s,  mpirank:0
+ try getConsole C:\Users\Lorenzo\Documents\Politecnico di Milano\V Anno - II Semestre\Scientific Computing Tools\MyHomework2\homework-2\scripts\solversupg.edp

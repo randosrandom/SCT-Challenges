@@ -1,0 +1,29 @@
+// 1. geometry
+load "gmsh"
+load "iovtk"
+
+/*
+mesh Thcac = gmshload("../our_scripts/geometries/new_meshes/cactus.msh");
+mesh Thcw = gmshload("../our_scripts/geometries/new_meshes/cw.msh");
+mesh Thwind = gmshload("../our_scripts/geometries/new_meshes/windsock.msh");
+mesh Thcauli = gmshload("../our_scripts/geometries/new_meshes/cauli.msh");
+
+plot(Thcac);
+
+cout << "Area cactus : " << int2d(Thcac)(1) << endl;
+cout << "Area cw: " << int2d(Thcw)(1) << endl;
+cout << "Area windsock: " << int2d(Thwind)(1) << endl;
+cout << "Area cauli: " << int2d(Thcauli)(1) << endl;
+*/	
+
+
+mesh Thcac = gmshload("../our_scripts/geometries/new_meshes/cut/cactus.msh");
+mesh Thcw = gmshload("../our_scripts/geometries/new_meshes/cut/cw.msh");
+mesh Thwind = gmshload("../our_scripts/geometries/new_meshes/cut/windsock.msh");
+mesh Thcauli = gmshload("../our_scripts/geometries/new_meshes/cut/cauli.msh");
+
+
+cout << "Area cactus (cut) : " << int2d(Thcac)(1) << endl;
+cout << "Area cw (cut): " << int2d(Thcw)(1) << endl;
+cout << "Area windsock (cut): " << int2d(Thwind)(1) << endl;
+cout << "Area cauli (cut): " << int2d(Thcauli)(1) << endl;
